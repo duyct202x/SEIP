@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="vi" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SEIP - Smart Eco-Industrial Platform</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'] },
+                    colors: {
+                        dark: { 900: '#070b14', 800: '#0d1527', 700: '#16223b', 600: '#1f2f4f' },
+                        neon: { green: '#00f260', blue: '#00d2ff', red: '#ff0055', purple: '#b53cff', yellow: '#ffb300', orange: '#ff6a00' }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { overflow: hidden; background-color: #070b14; color: #e2e8f0; }
+        
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #1f2f4f; border-radius: 4px; }
+        
+        .tab-content { display: none; animation: fadeUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; opacity: 0; transform: translateY(20px); }
+        .tab-content.active { display: block; }
+        @keyframes fadeUp { to { opacity: 1; transform: translateY(0); } }
+        
+        .typing-indicator span { display: inline-block; width: 5px; height: 5px; background: #00d2ff; border-radius: 50%; margin-right: 3px; animation: bounce 1.4s infinite ease-in-out both; }
+        .typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
+        .typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes bounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
+
+        .glass-card { background: rgba(13, 21, 39, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.05); box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3); border-radius: 16px; }
+        .glow-text-green { text-shadow: 0 0 10px rgba(0, 242, 96, 0.5); }
+        .glow-text-red { text-shadow: 0 0 15px rgba(255, 0, 85, 0.6); }
+        
+        .leaflet-container { background: #0d1527; font-family: 'Inter', sans-serif; }
+        .leaflet-layer { filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%); }
+        
+        .ai-camera { position: relative; overflow: hidden; }
+        .ai-camera::after { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 100%; background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06)); background-size: 100% 4px, 3px 100%; z-index: 10; pointer-events: none; }
+        .ai-box { position: absolute; border: 2px solid #ff0055; box-shadow: 0 0 10px #ff0055; z-index: 20; }
+        .ai-box::before { content: 'VIOLATION DETECTED - COD x2.5'; position: absolute; top: -20px; left: -2px; background: #ff0055; color: white; font-size: 9px; padding: 2px 6px; font-family: monospace; font-weight: bold; white-space: nowrap; }
+
+        .kpi-card { transition: all 0.3s ease; }
+        .kpi-card:hover { transform: translateY(-5px); border-color: rgba(255,255,255,0.15); box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+    </style>
+</head>
+<body class="flex flex-col h-screen text-sm">
+
+    <div id="login-screen" class="absolute inset-0 z-50 flex items-center justify-center bg-dark-900 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]">
+        <div class="glass-card p-10 w-full max-w-md text-center border-t border-slate-700">
+            <div class="inline-block p-4 rounded-full bg-dark-800 border border-dark-600 mb-6 shadow-[0_0_30px_rgba(0,242,96,0.15)]">
+                <i class="fa-solid fa-leaf text-4xl text-neon-green"></i>
+            </div>
+            <h1 class="text-3xl font-extrabold text-white tracking-tight mb-2">SEIP <span class="font-light text-slate-400">OS</span></h1>
+            <p class="text-slate-400 mb-8 font-mono text-xs uppercase tracking-widest">ESG & Circular Economy Platform</p>
+            
+            <div class="space-y-4">
+                <div class="relative">
+                    <i class="fa-solid fa-user absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-500"></i>
+                    <input type="text" id="username" placeholder="Tên đăng nhập (VD: doanhnghiep)" class="w-full bg-dark-800 border border-dark-600 text-white pl-11 pr-4 py-3 rounded-lg focus:outline-none focus:border-neon-blue focus:ring-1 focus:ring-neon-blue transition">
+                </div>
+                <div class="relative">
+                    <i class="fa-solid fa-lock absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-500"></i>
+                    <input type="password" id="password" placeholder="Mật khẩu" class="w-full bg-dark-800 border border-dark-600 text-white pl-11 pr-4 py-3 rounded-lg focus:outline-none focus:border-neon-blue focus:ring-1 focus:ring-neon-blue transition">
+                </div>
+                <button onclick="processAuth()" class="w-full bg-gradient-to-r from-neon-blue to-blue-600 hover:from-blue-400 hover:to-blue-500 text-white font-bold py-3.5 rounded-lg shadow-[0_0_20px_rgba(0,210,255,0.3)] transition-all duration-300 mt-2 uppercase tracking-wider text-xs">
+                    Xác thực Hệ thống
+                </button>
+            </div>
+            
+            <div class="mt-8 text-left text-xs text-slate-500 border-t border-dark-600 pt-5">
+                <p class="mb-2 uppercase tracking-wider text-[10px] font-bold">Tài khoản Demo (Enter to Login):</p>
+                <div class="flex gap-2 flex-wrap">
+                    <span class="bg-dark-800 border border-dark-600 px-3 py-1.5 rounded cursor-pointer hover:border-neon-green hover:text-neon-green transition" onclick="document.getElementById('username').value='doanhnghiep'">doanhnghiep</span>
+                    <span class="bg-dark-800 border border-dark-600 px-3 py-1.5 rounded cursor-pointer hover:border-neon-blue hover:text-neon-blue transition" onclick="document.getElementById('username').value='banquanly'">banquanly</span>
+                    <span class="bg-dark-800 border border-dark-600 px-3 py-1.5 rounded cursor-pointer hover:border-neon-purple hover:text-neon-purple transition" onclick="document.getElementById('username').value='songanh'">songanh</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="app-screen" class="hidden flex-1 flex overflow-hidden">
+        
+        <aside class="w-72 bg-dark-900 border-r border-dark-700 flex flex-col z-20">
+            <div class="h-20 flex items-center px-6 border-b border-dark-700 gap-3 bg-dark-800/50">
+                <i class="fa-solid fa-leaf text-2xl text-neon-green glow-text-green"></i>
+                <div>
+                    <h1 class="font-bold text-white tracking-widest text-lg leading-tight">SEIP <span class="font-light">OS</span></h1>
+                    <div class="text-[9px] font-mono text-neon-green uppercase tracking-widest flex items-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-neon-green animate-pulse"></span> SYSTEM ONLINE
+                    </div>
+                </div>
+            </div>
+            
+            <div class="p-6 border-b border-dark-700">
+                <div id="ui-role-badge" class="text-[10px] font-mono uppercase tracking-widest px-2 py-1 rounded bg-dark-700 text-slate-300 inline-block mb-3 border border-dark-600"></div>
+                <h3 id="ui-user-name" class="text-white font-semibold text-base mb-1"></h3>
+                <p id="ui-user-sub" class="text-xs text-slate-500"></p>
+            </div>
+
+            <nav class="flex-1 overflow-y-auto p-4 space-y-1" id="ui-nav-menu"></nav>
+
+            <div class="p-5 border-t border-dark-700 hover:bg-dark-800 transition cursor-pointer text-slate-400 hover:text-neon-red flex items-center gap-3" onclick="logout()">
+                <i class="fa-solid fa-power-off"></i> <span class="font-medium text-sm">Đóng phiên làm việc</span>
+            </div>
+        </aside>
+
+        <main class="flex-1 flex flex-col min-w-0 bg-dark-800 bg-[url('https://www.transparenttextures.com/patterns/black-scales.png')] relative">
+            
+            <header class="h-20 glass-card rounded-none border-t-0 border-l-0 border-r-0 border-b border-dark-600 flex items-center justify-between px-8 z-10 sticky top-0">
+                <div>
+                    <h2 id="ui-topbar-title" class="text-xl font-bold text-white tracking-wide"></h2>
+                    <p class="text-xs text-slate-400 font-mono mt-1" id="realtime-clock"></p>
+                </div>
+                <div class="flex items-center gap-6">
+                    <div class="flex items-center gap-4 text-slate-400">
+                        <i class="fa-solid fa-bell hover:text-white cursor-pointer transition relative"><span class="absolute -top-1 -right-1 w-2 h-2 bg-neon-red rounded-full"></span></i>
+                        <i class="fa-solid fa-gear hover:text-white cursor-pointer transition"></i>
+                    </div>
+                    <div class="h-8 w-px bg-dark-600"></div>
+                    <div class="flex items-center gap-3 bg-dark-900/50 px-4 py-2 rounded-lg border border-dark-600">
+                        <i class="fa-solid fa-database text-neon-blue"></i>
+                        <span class="text-xs font-mono text-slate-300">DATA: ĐÚNG-ĐỦ-SẠCH-SỐNG</span>
+                    </div>
+                </div>
+            </header>
+
+            <div class="flex-1 overflow-y-auto p-8" id="content-container">
+                
+                <div id="role1-content" class="hidden h-full">
+                    <div class="flex flex-col lg:flex-row gap-6 h-full">
+                        <div class="flex-1 overflow-y-auto pr-2 space-y-6 pb-10">
+                            
+                            <div id="r1_tab1" class="tab-content">
+                                <div class="flex justify-between items-end mb-4">
+                                    <div><h2 class="text-2xl font-bold text-white">Kiểm kê Khí nhà kính (GHG) ISO 14064</h2></div>
+                                    <button class="bg-dark-700 border border-dark-600 text-white px-4 py-2 rounded text-xs hover:bg-dark-600 transition"><i class="fa-solid fa-download text-neon-blue mr-1"></i> Xuất Báo cáo</button>
+                                </div>
+                                <div class="grid grid-cols-3 gap-4 mb-4">
+                                    <div class="glass-card p-4 border-t-2 border-t-neon-blue kpi-card">
+                                        <div class="text-[10px] text-slate-400 font-bold uppercase mb-1">Scope 2 (Điện)</div>
+                                        <div class="text-2xl font-light text-white">142.6 <span class="text-xs text-slate-500">MWh</span></div>
+                                    </div>
+                                    <div class="glass-card p-4 border-t-2 border-t-neon-orange kpi-card">
+                                        <div class="text-[10px] text-slate-400 font-bold uppercase mb-1">Scope 1 (Nhiên liệu)</div>
+                                        <div class="text-2xl font-light text-white">42.8 <span class="text-xs text-slate-500">Tấn</span></div>
+                                    </div>
+                                    <div class="glass-card p-4 border-t-2 border-t-neon-green kpi-card">
+                                        <div class="text-[10px] text-neon-green font-bold uppercase mb-1">Tổng Carbon Lũy Kế</div>
+                                        <div class="text-2xl font-bold text-white glow-text-green">185.4 <span class="text-xs font-normal text-slate-400">tCO2e</span></div>
+                                    </div>
+                                </div>
+                                <div class="glass-card p-4 h-64 flex flex-col"><h3 class="text-xs font-bold text-slate-300 mb-2 uppercase">Biểu đồ Phụ tải 24h</h3><div class="flex-1 w-full"><canvas id="chart-r1-carbon"></canvas></div></div>
+                            </div>
+                            
+                            <div id="r1_tab2" class="tab-content">
+                                <h2 class="text-2xl font-bold text-white mb-4">Thị trường Cộng sinh Công nghiệp</h2>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div class="glass-card p-5"><h3 class="text-xs font-bold text-white mb-4 uppercase tracking-wider">Ma trận Input/Output</h3>
+                                        <div class="space-y-3 font-mono text-xs">
+                                            <div class="bg-dark-900 p-3 rounded border border-dark-700"><span class="text-slate-500 block mb-1">Cần (Input):</span> <span class="text-neon-blue">NƯỚC RO - 500 m3/ngày</span></div>
+                                            <div class="bg-dark-900 p-3 rounded border border-neon-red/50 shadow-[0_0_10px_rgba(255,0,85,0.1)]"><span class="text-slate-500 block mb-1">Dư thừa (Output):</span> <span class="text-neon-red font-bold">NHIỆT DƯ (85°C)</span></div>
+                                        </div>
+                                    </div>
+                                    <div class="glass-card p-5 border-l-4 border-l-neon-yellow"><h3 class="text-xs font-bold text-neon-yellow mb-4 uppercase"><i class="fa-solid fa-handshake"></i> Khớp lệnh AI</h3>
+                                        <div class="bg-dark-900 rounded p-4 border border-dark-700">
+                                            <div class="text-xs text-slate-400 mb-1">Đối tác tiêu thụ Nhiệt dư:</div><div class="text-lg font-bold text-white mb-3">Nhà máy Sấy Nông sản B</div>
+                                            <div class="flex justify-between text-xs font-mono"><span>Tương thích: <strong class="text-neon-green text-sm">94%</strong></span><span>Hòa vốn: <strong class="text-white text-sm">14 Tháng</strong></span></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div id="r1_tab3" class="tab-content">
+                                <h2 class="text-2xl font-bold text-white mb-4">Cảnh báo An toàn Hạ tầng</h2>
+                                <div class="glass-card p-6 border-l-4 border-l-neon-red bg-red-900/10">
+                                    <h3 class="text-lg font-bold text-white mb-2 drop-shadow-[0_0_10px_rgba(255,0,85,0.8)]"><i class="fa-solid fa-triangle-exclamation text-neon-red mr-2"></i> RỦI RO LÚN NỨT MÓNG MÁY LY TÂM</h3>
+                                    <p class="text-sm text-red-200 mb-4">Hệ thống InSAR & Cảm biến áp lực phát hiện bất thường tại Phân xưởng cơ học 02.</p>
+                                    <div class="flex gap-4 font-mono text-xs">
+                                        <div class="bg-dark-900 border border-red-900/50 px-3 py-2 rounded">Nước ngầm: <span class="text-neon-red font-bold">HẠ 2.38m</span></div>
+                                        <div class="bg-dark-900 border border-red-900/50 px-3 py-2 rounded">Tốc độ lún: <span class="text-neon-red font-bold">> 10 mm/yr</span></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="w-full lg:w-[350px] glass-card border border-dark-600 flex flex-col h-[calc(100vh-140px)] shadow-[0_0_30px_rgba(0,0,0,0.3)]">
+                            <div class="p-4 border-b border-dark-600 bg-dark-800/80 flex items-center gap-3 rounded-t-2xl">
+                                <div class="w-10 h-10 rounded-full bg-neon-blue/10 border border-neon-blue/50 flex items-center justify-center text-neon-blue"><i class="fa-solid fa-robot"></i></div>
+                                <div><h3 class="font-bold text-white text-sm">AI ESG <span class="text-[9px] bg-neon-purple/20 text-neon-purple px-1 rounded ml-1 border border-neon-purple/30">Local Node</span></h3><p class="text-[10px] text-slate-400">Bảo mật dữ liệu nội bộ KCN</p></div>
+                            </div>
+                            <div class="flex-1 overflow-y-auto p-4 space-y-4" id="chat-box-r1">
+                                <div class="flex gap-2"><div class="w-8 h-8 rounded-full bg-neon-blue/20 flex-shrink-0 flex items-center justify-center text-neon-blue text-xs"><i class="fa-solid fa-robot"></i></div><div class="bg-dark-900 border border-dark-700 p-3 rounded-xl rounded-tl-none text-xs text-slate-300">Hệ thống phát hiện lượng phát thải Scope 2 tăng cao vào <strong>9h-11h</strong>. Bạn cần tôi hỗ trợ gì?</div></div>
+                                <div class="flex flex-col gap-2 pl-10" id="chat-suggestions-r1">
+                                    <button onclick="simulateLLM('r1', 'peak')" class="text-left text-xs bg-dark-800 border border-dark-700 hover:border-neon-blue text-slate-400 hover:text-white p-2.5 rounded-lg transition">👉 Tối ưu đỉnh phụ tải (Peak Load).</button>
+                                    <button onclick="simulateLLM('r1', 'report')" class="text-left text-xs bg-dark-800 border border-dark-700 hover:border-neon-green text-slate-400 hover:text-white p-2.5 rounded-lg transition">👉 Xuất Báo cáo GHG NĐ 06/2022.</button>
+                                </div>
+                            </div>
+                            <div class="p-4 border-t border-dark-600 bg-dark-900/50 rounded-b-2xl"><div class="relative"><input type="text" placeholder="Nhập lệnh AI..." class="w-full bg-dark-800 border border-dark-600 rounded-full pl-4 pr-10 py-2.5 text-xs text-white focus:outline-none focus:border-neon-blue"><button class="absolute right-1.5 top-1.5 w-7 h-7 bg-neon-blue hover:bg-blue-500 rounded-full flex items-center justify-center text-white"><i class="fa-solid fa-paper-plane text-[10px]"></i></button></div></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="role2-content" class="hidden h-full">
+                    <div class="flex flex-col lg:flex-row gap-6 h-full">
+                        
+                        <div class="flex-1 overflow-y-auto pr-2 space-y-6 pb-10">
+                            <div id="r2_tab1" class="tab-content">
+                                <h2 class="text-2xl font-bold text-white mb-4">Bản sao số (Digital Twin) Hạ tầng KCN</h2>
+                                <div class="grid grid-cols-3 gap-4 mb-4">
+                                    <div class="glass-card p-4 border-t-2 border-t-neon-blue"><div class="text-[10px] text-slate-400 font-bold uppercase mb-1">Trạm Nguồn thải</div><div class="text-3xl font-light text-white">376</div></div>
+                                    <div class="glass-card p-4 border-t-2 border-t-neon-yellow"><div class="text-[10px] text-slate-400 font-bold uppercase mb-1">Giếng Khai thác</div><div class="text-3xl font-light text-white">164 <span class="text-xs text-neon-yellow">(2 VP)</span></div></div>
+                                    <div class="glass-card p-4 border-t-2 border-t-neon-purple"><div class="text-[10px] text-slate-400 font-bold uppercase mb-1">Tốc độ Lún TB</div><div class="text-3xl font-light text-white">4.5 <span class="text-sm">mm/yr</span></div></div>
+                                </div>
+                                <div class="glass-card p-1 border border-dark-600 rounded-xl overflow-hidden h-[300px] relative"><div id="map-r2" class="w-full h-full z-10"></div></div>
+                            </div>
+
+                            <div id="r2_tab2" class="tab-content">
+                                <h2 class="text-2xl font-bold text-white mb-4">AI Vision - Phạt Nguội Tự Động</h2>
+                                <div class="glass-card border-l-4 border-l-neon-red bg-dark-900/50 flex flex-col md:flex-row p-0 overflow-hidden">
+                                    <div class="w-full md:w-1/3 bg-black flex items-center justify-center relative min-h-[150px]"><i class="fa-solid fa-play text-3xl text-white/20"></i><div class="absolute top-2 left-2 bg-neon-red text-white text-[9px] font-bold px-1.5 py-0.5 rounded animate-pulse">REC: 30s</div></div>
+                                    <div class="w-full md:w-2/3 p-5 flex flex-col justify-center">
+                                        <h3 class="text-base font-bold text-white glow-text-red mb-2 uppercase"><i class="fa-solid fa-crosshairs"></i> Bắt Quả Tang Xả Thải</h3>
+                                        <div class="grid grid-cols-2 gap-2 text-xs font-mono text-slate-300">
+                                            <div><span class="text-slate-500 block">Tọa độ:</span> Dệt Nhuộm X</div>
+                                            <div><span class="text-slate-500 block">AI Nhận diện:</span> <span class="text-neon-red font-bold">NƯỚC ĐỔI MÀU</span></div>
+                                            <div class="col-span-2"><span class="text-slate-500 block">Sensor:</span> COD VƯỢT 2.5 LẦN</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div id="r2_tab3" class="tab-content">
+                                <h2 class="text-2xl font-bold text-white mb-4">DSS Dự báo & Điều phối Tuần hoàn</h2>
+                                <div class="grid grid-cols-2 gap-4 mb-4">
+                                    <div class="glass-card p-4"><div class="text-[10px] text-slate-400 font-bold uppercase mb-1">Dự báo Nước thải</div><div class="text-2xl font-light text-white">12.5 <span class="text-xs">K-m³</span></div></div>
+                                    <div class="glass-card p-4 border border-neon-blue/30 shadow-[0_0_15px_rgba(0,210,255,0.1)]"><div class="text-[10px] text-slate-400 font-bold uppercase mb-1">Tỷ lệ Tuần hoàn</div><div class="text-2xl font-bold text-neon-blue">30%</div></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="w-full lg:w-[350px] glass-card border border-dark-600 flex flex-col h-[calc(100vh-140px)] shadow-[0_0_30px_rgba(0,0,0,0.3)]">
+                            <div class="p-4 border-b border-dark-600 bg-dark-800/80 flex items-center gap-3 rounded-t-2xl">
+                                <div class="w-10 h-10 rounded-full bg-neon-green/10 border border-neon-green/50 flex items-center justify-center text-neon-green"><i class="fa-solid fa-microchip"></i></div>
+                                <div><h3 class="font-bold text-white text-sm">AI Management <span class="text-[9px] bg-neon-green/20 text-neon-green px-1 rounded ml-1 border border-neon-green/30">Admin Node</span></h3><p class="text-[10px] text-slate-400">Điều phối luồng dữ liệu KCN</p></div>
+                            </div>
+                            <div class="flex-1 overflow-y-auto p-4 space-y-4" id="chat-box-r2">
+                                <div class="flex gap-2"><div class="w-8 h-8 rounded-full bg-neon-green/20 flex-shrink-0 flex items-center justify-center text-neon-green text-xs"><i class="fa-solid fa-microchip"></i></div><div class="bg-dark-900 border border-dark-700 p-3 rounded-xl rounded-tl-none text-xs text-slate-300">Tôi là AI tổng hợp dữ liệu toàn KCN. Cần trích xuất thông tin gì hôm nay?</div></div>
+                                <div class="flex flex-col gap-2 pl-10" id="chat-suggestions-r2">
+                                    <button onclick="simulateLLM('r2', 'violate')" class="text-left text-xs bg-dark-800 border border-dark-700 hover:border-neon-red text-slate-400 hover:text-white p-2.5 rounded-lg transition">👉 Lọc cảnh báo vi phạm xả thải hôm nay.</button>
+                                    <button onclick="simulateLLM('r2', 'water')" class="text-left text-xs bg-dark-800 border border-dark-700 hover:border-neon-blue text-slate-400 hover:text-white p-2.5 rounded-lg transition">👉 Dự báo năng lực tuần hoàn nước LSTM.</button>
+                                </div>
+                            </div>
+                            <div class="p-4 border-t border-dark-600 bg-dark-900/50 rounded-b-2xl"><div class="relative"><input type="text" placeholder="Giao tiếp với AI..." class="w-full bg-dark-800 border border-dark-600 rounded-full pl-4 pr-10 py-2.5 text-xs text-white focus:outline-none"><button class="absolute right-1.5 top-1.5 w-7 h-7 bg-neon-green text-black rounded-full flex items-center justify-center"><i class="fa-solid fa-paper-plane text-[10px]"></i></button></div></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="role3-content" class="hidden h-full">
+                    <div class="flex flex-col lg:flex-row gap-6 h-full">
+                        
+                        <div class="flex-1 overflow-y-auto pr-2 space-y-6 pb-10">
+                            <div id="r3_tab1" class="tab-content">
+                                <h2 class="text-2xl font-bold text-white mb-4">Bản đồ Nhiệt (Heatmap) Vĩ mô TP.HCM</h2>
+                                <div class="grid grid-cols-3 gap-4 mb-4">
+                                    <div class="glass-card p-4 border-t-2 border-t-neon-red"><div class="text-[10px] text-slate-400 font-bold uppercase mb-1">Cảnh báo Sông</div><div class="text-sm font-bold text-neon-red mb-1">Suối Nhum, Tham Lương</div></div>
+                                    <div class="glass-card p-4"><div class="text-[10px] text-slate-400 font-bold uppercase mb-1">Tổng Carbon Lũy kế</div><div class="text-2xl font-light text-white">4.25 <span class="text-xs">M-t</span></div></div>
+                                    <div class="glass-card p-4"><div class="text-[10px] text-slate-400 font-bold uppercase mb-1">Tốc độ lún Bình quân</div><div class="text-2xl font-light text-white">4.5 <span class="text-xs">mm/yr</span></div></div>
+                                </div>
+                                <div class="glass-card p-1 border border-dark-600 rounded-xl overflow-hidden h-[350px] relative"><div id="map-r3" class="w-full h-full z-10"></div></div>
+                            </div>
+
+                            <div id="r3_tab2" class="tab-content">
+                                <h2 class="text-2xl font-bold text-white mb-4">Xử phạt Vi phạm Điện tử</h2>
+                                <div class="glass-card border border-dark-600 overflow-hidden">
+                                    <table class="w-full text-left text-xs font-mono">
+                                        <thead class="bg-dark-900 border-b border-dark-600 text-slate-400 uppercase"><tr><th class="py-4 px-6">Mã Hồ Sơ</th><th class="py-4 px-6">Pháp nhân</th><th class="py-4 px-6">Nhận diện AI</th></tr></thead>
+                                        <tbody class="divide-y divide-brand-700 text-slate-300">
+                                            <tr class="hover:bg-brand-800/50"><td class="py-4 px-6 font-bold text-white">#VP-26-88</td><td class="py-4 px-6">DỆT NHUỘM X</td><td class="py-4 px-6"><span class="text-neon-red font-bold">NƯỚC ĐỔI MÀU</span></td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div id="r3_tab3" class="tab-content">
+                                <h2 class="text-2xl font-bold text-white mb-4">Tiến độ Lộ trình Net Zero 2050</h2>
+                                <div class="glass-card p-4 h-72 flex flex-col"><h3 class="text-xs font-bold text-white mb-2 uppercase">Kịch bản BAU vs SEIP</h3><div class="flex-1 w-full"><canvas id="chart-r3-netzero"></canvas></div></div>
+                            </div>
+                        </div>
+
+                        <div class="w-full lg:w-[350px] glass-card border border-brand-600 flex flex-col h-[calc(100vh-140px)] shadow-[0_0_30px_rgba(0,0,0,0.3)]">
+                            <div class="p-4 border-b border-dark-600 bg-dark-800/80 flex items-center gap-3 rounded-t-2xl">
+                                <div class="w-10 h-10 rounded-full bg-neon-purple/10 border border-neon-purple/50 flex items-center justify-center text-neon-purple"><i class="fa-solid fa-gavel"></i></div>
+                                <div><h3 class="font-bold text-white text-sm">AI Governance <span class="text-[9px] bg-neon-red/20 text-neon-red px-1 rounded ml-1 border border-neon-red/30">Gov Node</span></h3><p class="text-[10px] text-slate-400">Tham mưu Quản lý Nhà nước</p></div>
+                            </div>
+                            <div class="flex-1 overflow-y-auto p-4 space-y-4" id="chat-box-r3">
+                                <div class="flex gap-2"><div class="w-8 h-8 rounded-full bg-neon-purple/20 flex-shrink-0 flex items-center justify-center text-neon-purple text-xs"><i class="fa-solid fa-gavel"></i></div><div class="bg-dark-900 border border-dark-700 p-3 rounded-xl rounded-tl-none text-xs text-slate-300">Hệ thống phân tích chính sách công và xử phạt trực tuyến đã sẵn sàng.</div></div>
+                                <div class="flex flex-col gap-2 pl-10" id="chat-suggestions-r3">
+                                    <button onclick="simulateLLM('r3', 'netzero')" class="text-left text-xs bg-dark-800 border border-dark-700 hover:border-neon-purple text-slate-400 hover:text-white p-2.5 rounded-lg transition">👉 Phân tích tiến độ Net Zero 2050.</button>
+                                    <button onclick="simulateLLM('r3', 'law')" class="text-left text-xs bg-dark-800 border border-dark-700 hover:border-neon-red text-slate-400 hover:text-white p-2.5 rounded-lg transition">👉 Dự thảo QĐ Xử phạt Dệt Nhuộm X.</button>
+                                </div>
+                            </div>
+                            <div class="p-4 border-t border-dark-600 bg-dark-900/50 rounded-b-2xl"><div class="relative"><input type="text" placeholder="Ra lệnh truy vấn..." class="w-full bg-dark-800 border border-dark-600 rounded-full pl-4 pr-10 py-2.5 text-xs text-white focus:outline-none focus:border-neon-purple"><button class="absolute right-1.5 top-1.5 w-7 h-7 bg-neon-purple text-white rounded-full flex items-center justify-center"><i class="fa-solid fa-paper-plane text-[10px]"></i></button></div></div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <script>
+        setInterval(() => { const now = new Date(); document.getElementById('realtime-clock').innerText = now.toLocaleString('vi-VN') + ' | LAT: 12ms'; }, 1000);
+
+        Chart.defaults.color = '#94a3b8'; Chart.defaults.font.family = "'JetBrains Mono', monospace"; Chart.defaults.scale.grid.color = 'rgba(255, 255, 255, 0.05)';
+
+        const roleData = {
+            'role1': { badge: 'NODE 01: DOANH NGHIỆP', name: 'Nhà máy Phân xưởng K', sub: 'Khối Doanh nghiệp FDI', topTitle: 'FACTORY DASHBOARD', tabs: [ { id: 'r1_tab1', name: 'GHG ISO 14064', icon: 'fa-chart-pie' }, { id: 'r1_tab2', name: 'Cộng sinh CN', icon: 'fa-handshake' }, { id: 'r1_tab3', name: 'An toàn Hạ tầng', icon: 'fa-shield-halved' } ] },
+            'role2': { badge: 'NODE 02: BAN QUẢN LÝ', name: 'HEPZA & SHTP', sub: 'Khối Điều hành KCN Sinh thái', topTitle: 'PLATFORM DASHBOARD', tabs: [ { id: 'r2_tab1', name: 'Digital Twin', icon: 'fa-cubes' }, { id: 'r2_tab2', name: 'AI Phạt Nguội', icon: 'fa-camera' }, { id: 'r2_tab3', name: 'DSS Tuần hoàn', icon: 'fa-recycle' } ] },
+            'role3': { badge: 'NODE 03: SỞ NGÀNH TP', name: 'Sở TN&MT TP.HCM', sub: 'Khối Giám sát Vĩ mô', topTitle: 'COMMAND CENTER', tabs: [ { id: 'r3_tab1', name: 'Heatmap Môi trường', icon: 'fa-map' }, { id: 'r3_tab2', name: 'Xử phạt Điện tử', icon: 'fa-gavel' }, { id: 'r3_tab3', name: 'Đánh giá Net Zero', icon: 'fa-leaf' } ] }
+        };
+
+        let chartR1, chartR3, mapR2, mapR3;
+
+        document.addEventListener('DOMContentLoaded', () => { document.getElementById('username')?.addEventListener('keypress', (e) => { if(e.key === 'Enter') processAuth(); }); });
+
+        function processAuth() {
+            const u = document.getElementById('username').value.toLowerCase().trim();
+            if(u === 'doanhnghiep') login('role1'); else if(u === 'banquanly') login('role2'); else if(u === 'songanh') login('role3'); else alert('Nhập demo: doanhnghiep / banquanly / songanh');
+        }
+
+        function login(roleId) {
+            const data = roleData[roleId];
+            document.getElementById('ui-role-badge').innerText = data.badge; document.getElementById('ui-user-name').innerText = data.name; document.getElementById('ui-user-sub').innerText = data.sub; document.getElementById('ui-topbar-title').innerText = data.topTitle;
+            document.getElementById('ui-nav-menu').innerHTML = data.tabs.map((t, i) => `<div class="px-4 py-3 rounded-lg cursor-pointer transition flex items-center gap-3 text-xs uppercase font-bold ${i===0 ? 'bg-brand-700 text-white shadow-[inset_2px_0_0_#00f260]' : 'text-slate-500 hover:bg-brand-800'}" onclick="switchTab('${t.id}', '${roleId}', this, ${i})"><i class="fa-solid ${t.icon} w-5 text-center"></i> ${t.name}</div>`).join('');
+            
+            document.querySelectorAll('#content-container > div').forEach(el => el.classList.add('hidden'));
+            const activeRole = document.getElementById(roleId + '-content'); activeRole.classList.remove('hidden');
+            activeRole.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active')); activeRole.querySelector(`#${data.tabs[0].id}`).classList.add('active');
+
+            setTimeout(() => { if(roleId === 'role1') renderR1Chart(); if(roleId === 'role2') initMapR2(); if(roleId === 'role3') { renderR3Chart(); initMapR3(); } }, 100);
+            document.getElementById('login-screen').classList.add('hidden'); document.getElementById('app-screen').classList.remove('hidden');
+        }
+
+        function switchTab(tabId, roleId, el, idx) {
+            const activeRole = document.getElementById(roleId + '-content'); activeRole.querySelectorAll('.tab-content').forEach(e => e.classList.remove('active'));
+            const navs = document.getElementById('ui-nav-menu').children; for(let i=0; i<navs.length; i++) navs[i].className = "px-4 py-3 rounded-lg cursor-pointer transition flex items-center gap-3 text-xs uppercase font-bold text-slate-500 hover:bg-brand-800";
+            const colors = ['#00f260', '#00d2ff', '#b53cff']; el.className = `px-4 py-3 rounded-lg cursor-pointer transition flex items-center gap-3 text-xs uppercase font-bold bg-brand-700 text-white shadow-[inset_2px_0_0_${colors[idx%3]}]`;
+            document.getElementById(tabId).classList.add('active');
+
+            setTimeout(() => { if(tabId === 'r2_tab1' && mapR2) mapR2.invalidateSize(); if(tabId === 'r3_tab1' && mapR3) mapR3.invalidateSize(); }, 100);
+        }
+
+        function logout() { document.getElementById('app-screen').classList.add('hidden'); document.getElementById('login-screen').classList.remove('hidden'); document.getElementById('username').value = ''; }
+
+        function simulateLLM(role, type) {
+            document.getElementById(`chat-suggestions-${role}`).style.display = 'none';
+            const chat = document.getElementById(`chat-box-${role}`);
+            
+            let userMsg = '';
+            if(type==='peak') userMsg = "Tối ưu đỉnh phụ tải."; if(type==='report') userMsg = "Xuất Báo cáo GHG tự động.";
+            if(type==='violate') userMsg = "Lọc cảnh báo vi phạm xả thải."; if(type==='water') userMsg = "Dự báo tuần hoàn nước.";
+            if(type==='netzero') userMsg = "Phân tích Net Zero 2050."; if(type==='law') userMsg = "Dự thảo QĐ Xử phạt Cty Dệt Nhuộm X.";
+            
+            chat.insertAdjacentHTML('beforeend', `<div class="flex gap-2 justify-end mt-4"><div class="bg-brand-700 border border-brand-600 p-2.5 rounded-xl rounded-tr-none text-xs text-white">${userMsg}</div></div>`);
+            
+            let iconColor = role === 'r1' ? 'neon-blue' : (role === 'r2' ? 'neon-green' : 'neon-purple');
+            let iconCode = role === 'r1' ? 'fa-robot' : (role === 'r2' ? 'fa-microchip' : 'fa-gavel');
+            
+            const thinkId = 't' + Date.now();
+            chat.insertAdjacentHTML('beforeend', `<div id="${thinkId}" class="flex gap-3 mt-4"><div class="w-8 h-8 rounded-full bg-${iconColor}/20 flex items-center justify-center text-${iconColor} text-xs"><i class="fa-solid ${iconCode}"></i></div><div class="bg-dark-900 border border-brand-700 p-3 rounded-xl rounded-tl-none"><div class="typing-indicator"><span></span><span></span><span></span></div></div></div>`);
+            chat.scrollTop = chat.scrollHeight;
+
+            setTimeout(() => {
+                document.getElementById(thinkId).remove();
+                let reply = '';
+                if(type==='peak') reply = `Đỉnh phụ tải do 3 Máy Nghiền. Đề xuất dịch 15% mẻ nghiền sang 22h-04h.<br>Hiệu quả: <strong class="text-neon-green">Giảm 8% GHG</strong>.<br><button class="mt-2 bg-brand-700 px-3 py-1.5 rounded text-[10px] font-bold text-white shadow-sm">Áp dụng Lịch trình (Sync PLC)</button>`;
+                if(type==='report') reply = `<div class="flex items-center gap-3 border border-brand-700 p-2.5 rounded bg-dark-900"><i class="fa-solid fa-file-pdf text-neon-red text-xl"></i><div><div class="text-[10px] font-bold text-white">BaoCao_GHG.pdf</div><div class="text-[9px] text-slate-500">ISO 14064</div></div></div>`;
+                if(type==='violate') reply = `Phát hiện <strong class="text-neon-red">1 vi phạm nghiêm trọng</strong>: Cty Dệt Nhuộm X (Nước đỏ, COD x2.5). Đã tạo biên bản #VP-26-88 chờ Sở duyệt.`;
+                if(type==='water') reply = `Mô hình LSTM dự báo mai có 12.5K m³ nước thải. Đề xuất bơm <strong class="text-neon-blue">2,500 m³</strong> giải nhiệt và <strong class="text-neon-green">1,250 m³</strong> tưới cây.`;
+                if(type==='netzero') reply = `Lộ trình đang bám sát mục tiêu. Tốc độ giảm phát thải nhanh hơn BAU <strong class="text-neon-green">4.2%</strong>. Đạt chuẩn tín chỉ Carbon 2028.`;
+                if(type==='law') reply = `Căn cứ Luật BVMT 2020 và Clip AI 30s:<br><br><div class="flex items-center gap-3 border border-brand-700 p-2.5 rounded bg-dark-900"><i class="fa-solid fa-file-signature text-neon-purple text-xl"></i><div><div class="text-[10px] font-bold text-white">DuThao_Phat.docx</div><div class="text-[9px] text-slate-500">Mức phạt: 250tr VNĐ</div></div></div>`;
+
+                chat.insertAdjacentHTML('beforeend', `<div class="flex gap-3 mt-4"><div class="w-8 h-8 rounded-full bg-${iconColor}/20 flex-shrink-0 flex items-center justify-center text-${iconColor} text-xs"><i class="fa-solid ${iconCode}"></i></div><div class="bg-dark-900 border border-brand-700 p-3.5 rounded-xl rounded-tl-none text-[12px] text-slate-300 shadow-md leading-relaxed">${reply}</div></div>`);
+                chat.scrollTop = chat.scrollHeight;
+            }, 1200);
+        }
+
+        function renderR1Chart() {
+            if(chartR1) chartR1.destroy();
+            let ctx = document.getElementById('chart-r1-carbon').getContext('2d');
+            let grad1 = ctx.createLinearGradient(0,0,0,300); grad1.addColorStop(0,'rgba(0,210,255,0.4)'); grad1.addColorStop(1,'rgba(0,210,255,0.0)');
+            let grad2 = ctx.createLinearGradient(0,0,0,300); grad2.addColorStop(0,'rgba(255,106,0,0.4)'); grad2.addColorStop(1,'rgba(255,106,0,0.0)');
+            chartR1 = new Chart(ctx, { type: 'line', data: { labels: ['00:00','04:00','08:00','10:00 (Peak)','12:00','16:00'], datasets: [{ label: 'Scope 2', data: [15,12,40,88,55,45], borderColor: '#00d2ff', backgroundColor: grad1, fill: true, tension: 0.4 }, { label: 'Scope 1', data: [10,10,15,20,18,15], borderColor: '#ff6a00', backgroundColor: grad2, fill: true, tension: 0.4, borderDash:[5,5], pointRadius:0 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top', align: 'end', labels: { boxWidth: 10, usePointStyle: true, color: '#94a3b8' } } }, scales: { y: { grid: { color: 'rgba(255,255,255,0.05)' } }, x: { grid: { display: false } } } } });
+        }
+        function renderR3Chart() {
+            if(chartR3) chartR3.destroy();
+            let ctx = document.getElementById('chart-r3-netzero').getContext('2d');
+            let gradGreen = ctx.createLinearGradient(0,0,0,300); gradGreen.addColorStop(0,'rgba(0,242,96,0.3)'); gradGreen.addColorStop(1,'rgba(0,242,96,0.0)');
+            chartR3 = new Chart(ctx, { type: 'line', data: { labels: ['2020','2030','2040','2050'], datasets: [{ label: 'BAU', data: [100,130,175,210], borderColor: '#ff0055', borderDash: [5,5] }, { label: 'SEIP', data: [100,85,35,0], borderColor: '#00f260', fill: true, backgroundColor: gradGreen }] }, options: { responsive: true, maintainAspectRatio: false } });
+        }
+
+        function initMapR2() {
+            if(mapR2) return; 
+            mapR2 = L.map('map-r2', { zoomControl: false }).setView([10.7626, 106.6601], 13);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '' }).addTo(mapR2);
+            L.circleMarker([10.7626, 106.6601], { radius: 8, color: '#00d2ff', fillColor: '#00d2ff', fillOpacity: 0.8 }).addTo(mapR2);
+            L.circleMarker([10.7726, 106.6701], { radius: 8, color: '#00d2ff', fillColor: '#00d2ff', fillOpacity: 0.8 }).addTo(mapR2);
+            L.circleMarker([10.7526, 106.6501], { radius: 15, color: '#ff0055', fillColor: '#ff0055', fillOpacity: 0.5 }).bindPopup("Cảnh báo Sụt lún").addTo(mapR2);
+        }
+
+        function initMapR3() {
+            if(mapR3) return;
+            mapR3 = L.map('map-r3', { zoomControl: false }).setView([10.7326, 106.7201], 11);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '' }).addTo(mapR3);
+            L.circle([10.7626, 106.7701], { radius: 3000, color: 'transparent', fillColor: '#ff0055', fillOpacity: 0.4 }).addTo(mapR3);
+            L.circle([10.8626, 106.7601], { radius: 2500, color: 'transparent', fillColor: '#ff0055', fillOpacity: 0.3 }).addTo(mapR3);
+        }
+    </script>
+</body>
+</html>
